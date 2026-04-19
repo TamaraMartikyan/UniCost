@@ -1,0 +1,70 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 10%;
+    --foreground: 240 15% 92%;
+    --card: 240 10% 14%;
+    --card-foreground: 240 15% 92%;
+    --popover: 240 10% 14%;
+    --popover-foreground: 240 15% 92%;
+    --primary: 258 90% 66%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 8% 18%;
+    --secondary-foreground: 240 12% 70%;
+    --muted: 240 8% 18%;
+    --muted-foreground: 240 8% 52%;
+    --accent: 240 8% 20%;
+    --accent-foreground: 240 15% 92%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 8% 20%;
+    --input: 240 8% 20%;
+    --ring: 258 90% 66%;
+    --radius: 0.6rem;
+    --sidebar-background: 240 12% 8%;
+    --sidebar-foreground: 240 10% 58%;
+    --sidebar-primary: 258 90% 66%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 10% 13%;
+    --sidebar-accent-foreground: 240 15% 88%;
+    --sidebar-border: 240 10% 13%;
+    --sidebar-ring: 258 90% 66%;
+    --c-purple: #a78bfa;
+    --c-violet: #8b5cf6;
+    --c-blue:   #60a5fa;
+    --c-cyan:   #22d3ee;
+    --c-green:  #34d399;
+    --c-amber:  #fbbf24;
+    --c-red:    #f87171;
+    --c-pink:   #f472b6;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', serif; }
+}
+
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(240 8% 28%); border-radius: 99px; }
+
+.mono            { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; }
+.text-gold       { color: var(--c-amber); }
+.text-blue-acc   { color: var(--c-blue); }
+.text-green-acc  { color: var(--c-green); }
+.text-red-acc    { color: var(--c-red); }
+.text-amber-acc  { color: var(--c-amber); }
+.text-violet-acc { color: var(--c-violet); }
+.text-purple-acc { color: var(--c-purple); }
+.text-cyan-acc   { color: var(--c-cyan); }
