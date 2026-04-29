@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/app/components/ui/table";
 import { Input } from "@/app/components/ui/input";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { fmt } from "@/lib/utils";
+import { fmt, downloadFile } from "@/lib/utils";
 import { Search, RefreshCw, Download, Trash2, Upload, AlertTriangle, X, Check } from "lucide-react";
+import { useLang } from "@/lib/LangContext";
 
 const BASE = "http://localhost:8001";
 
@@ -30,17 +31,10 @@ async function importFile(endpoint: string, file: File) {
     return res.json();
 }
 
-function exportCSV(columns: any[], data: any[], name: string) {
-    const header = columns.map((c: any) => c.label).join(",");
-    const rows = data.map((row: any) => columns.map((c: any) => row[c.key] ?? "").join(","));
-    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${name}.csv`; a.click();
-}
 
 // ── Confirm Dialog ────────────────────────────────────────────────────
 function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+    const { t } = useLang();
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
             <div className="bg-card border border-border rounded-xl p-6 w-[400px] shadow-2xl">
@@ -49,16 +43,16 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
                         <AlertTriangle className="h-5 w-5 text-red-400" />
                     </div>
                     <div>
-                        <p className="font-semibold text-foreground">Are you sure?</p>
+                        <p className="font-semibold text-foreground">{t.areYouSure}</p>
                         <p className="text-sm text-muted-foreground mt-0.5">{message}</p>
                     </div>
                 </div>
                 <div className="flex gap-2 justify-end mt-5">
                     <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium bg-secondary text-foreground hover:bg-accent transition-colors">
-                        Cancel
+                        {t.cancelBtn}
                     </button>
                     <button onClick={onConfirm} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors">
-                        Delete
+                        {t.deleteBtn}
                     </button>
                 </div>
             </div>
@@ -70,6 +64,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 function ImportModal({ tableName, endpoint, onClose, onSuccess }: {
     tableName: string; endpoint: string; onClose: () => void; onSuccess: () => void;
 }) {
+    const { t } = useLang();
     const fileRef = useRef<HTMLInputElement>(null);
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [message, setMessage] = useState("");
@@ -95,7 +90,7 @@ function ImportModal({ tableName, endpoint, onClose, onSuccess }: {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
             <div className="bg-card border border-border rounded-xl p-6 w-[480px] shadow-2xl">
                 <div className="flex items-center justify-between mb-5">
-                    <h3 className="font-display text-lg font-semibold">Import {tableName}</h3>
+                    <h3 className="font-display text-lg font-semibold">{t.importTitle} {tableName}</h3>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
                         <X className="h-5 w-5" />
                     </button>
@@ -106,16 +101,16 @@ function ImportModal({ tableName, endpoint, onClose, onSuccess }: {
                     className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-accent/30 transition-all"
                 >
                     <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm font-medium text-foreground">Click to upload CSV file</p>
-                    <p className="text-xs text-muted-foreground mt-1">CSV format with column headers</p>
+                    <p className="text-sm font-medium text-foreground">{t.importUploadText}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t.importMustInclude}</p>
                     {fileName && <p className="text-xs text-primary mt-2 font-mono">{fileName}</p>}
-                    <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
+                    <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFile} />
                 </div>
 
                 {status === "loading" && (
                     <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        Importing...
+                        {t.importFile}...
                     </div>
                 )}
                 {status === "success" && (
@@ -130,11 +125,17 @@ function ImportModal({ tableName, endpoint, onClose, onSuccess }: {
                 )}
 
                 <div className="mt-5 p-3 rounded-lg bg-secondary/50 text-xs text-muted-foreground font-mono">
-                    CSV must have headers matching column names exactly.
+                    {t.importRequiredCols}
                 </div>
 
-                <button onClick={onClose} className="mt-4 w-full py-2 rounded-lg text-sm font-medium bg-secondary hover:bg-accent transition-colors">
-                    Close
+                <button
+                    onClick={() => downloadFile(`http://localhost:8001/${endpoint}/template`, `${endpoint}_template.xlsx`)}
+                    className="mt-3 w-full py-2 rounded-lg text-sm font-medium bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors flex items-center justify-center gap-2"
+                >
+                    <Download className="h-3.5 w-3.5" /> {t.importDownloadTpl}
+                </button>
+                <button onClick={onClose} className="mt-2 w-full py-2 rounded-lg text-sm font-medium bg-secondary hover:bg-accent transition-colors">
+                    {t.importClose}
                 </button>
             </div>
         </div>
@@ -162,7 +163,7 @@ function DataPage({
     const [busy, setBusy] = useState(false);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-    const rows = (data as any[]) ?? [];
+    const rows = Array.isArray(data) ? data : [];
     const filtered = rows.filter((row) =>
         Object.values(row).some((v) => String(v ?? "").toLowerCase().includes(search.toLowerCase()))
     );
@@ -198,7 +199,7 @@ function DataPage({
                 showToast(`${selected.size} rows deleted.`);
             } else if (confirm.type === "all") {
                 await deleteAll(endpoint);
-                showToast("All rows deleted.");
+                showToast(t.deleteAll + " ✓");
             }
             refetch();
         } catch (e: any) {
@@ -209,6 +210,7 @@ function DataPage({
         }
     };
 
+    const { t } = useLang();
     return (
         <div className="p-8 animate-in fade-in duration-300">
             <PageHeader title={title} subtitle={subtitle} />
@@ -218,7 +220,7 @@ function DataPage({
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search..."
+                        placeholder={t.search}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9 h-9 bg-card border-border text-sm"
@@ -230,32 +232,32 @@ function DataPage({
                             onClick={() => setConfirm({ type: "selected" })}
                             className="h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 transition-colors"
                         >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete Selected ({selected.size})
+                            <Trash2 className="h-3.5 w-3.5" /> {t.deleteBtn} ({selected.size})
                         </button>
                     )}
                     <button
                         onClick={() => setConfirm({ type: "all" })}
                         className="h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-secondary text-muted-foreground border border-border hover:text-red-400 hover:border-red-500/30 transition-colors"
                     >
-                        <Trash2 className="h-3.5 w-3.5" /> Delete All
+                        <Trash2 className="h-3.5 w-3.5" /> {t.deleteAll}
                     </button>
                     <button
                         onClick={() => setShowImport(true)}
                         className="h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
                     >
-                        <Upload className="h-3.5 w-3.5" /> Import CSV
+                        <Upload className="h-3.5 w-3.5" /> {t.importFile}
                     </button>
                     <button
-                        onClick={() => exportCSV(columns, filtered, csvName)}
-                        className="h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => downloadFile(`http://localhost:8001/export/${endpoint}`, `${endpoint}.xlsx`)}
+                        className="h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-secondary border border-border text-green-400 hover:bg-green-500/10 transition-colors"
                     >
-                        <Download className="h-3.5 w-3.5" /> Export CSV
+                        <Download className="h-3.5 w-3.5" /> Excel
                     </button>
                     <button
                         onClick={refetch}
                         className="h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
                     >
-                        <RefreshCw className="h-3.5 w-3.5" /> Refresh
+                        <RefreshCw className="h-3.5 w-3.5" /> {t.refresh}
                     </button>
                 </div>
             </div>
@@ -263,7 +265,7 @@ function DataPage({
             <Card className="border-border">
                 <CardHeader className="pt-4 px-5 pb-3 flex-row items-center justify-between">
                     <CardTitle className="font-display text-base">{title}</CardTitle>
-                    <span className="text-xs text-muted-foreground">{filtered.length} records</span>
+                    <span className="text-xs text-muted-foreground">{filtered.length} {t.records}</span>
                 </CardHeader>
                 <CardContent className="px-0 pb-0">
                     <div className="overflow-x-auto">
@@ -348,9 +350,9 @@ function DataPage({
             {confirm && (
                 <ConfirmDialog
                     message={
-                        confirm.type === "row" ? "This row will be permanently deleted."
-                            : confirm.type === "selected" ? `${selected.size} selected rows will be permanently deleted.`
-                                : "ALL rows in this table will be permanently deleted."
+                        confirm.type === "row" ? t.deleteRowMsg
+                            : confirm.type === "selected" ? `${selected.size} ${t.deleteSelectedMsg}`
+                                : t.deleteAllMsg
                     }
                     onConfirm={handleConfirm}
                     onCancel={() => setConfirm(null)}
@@ -381,86 +383,91 @@ function DataPage({
 
 // ── Page exports ──────────────────────────────────────────────────────
 export function Institutes() {
+    const { t } = useLang();
     return (
         <DataPage
-            title="Institutes" subtitle="Manage institute records"
+            title={t.institutes} subtitle={t.institutesViewSub}
             fetcher={getInstitutes}
             endpoint="institutes" idKey="institute_id" csvName="institutes"
             columns={[
                 { key: "institute_id", label: "ID", render: (v) => <span className="mono text-muted-foreground">#{v as number}</span> },
-                { key: "institute_name", label: "Name", render: (v) => <span className="font-medium">{v as string}</span> },
-                { key: "institute_code", label: "Code", render: (v) => <span className="mono">{v as string}</span> },
+                { key: "institute_name", label: t.institute, render: (v) => <span className="font-medium">{v as string}</span> },
+                { key: "institute_code", label: t.code, render: (v) => <span className="mono">{v as string}</span> },
             ]}
         />
     );
 }
 
 export function Departments() {
+    const { t } = useLang();
     return (
         <DataPage
-            title="Departments" subtitle="Manage department records"
+            title={t.departments} subtitle={t.departmentsViewSub}
             fetcher={getDepartments}
             endpoint="departments" idKey="department_id" csvName="departments"
             columns={[
                 { key: "department_id", label: "ID", render: (v) => <span className="mono text-muted-foreground">#{v as number}</span> },
-                { key: "department_name", label: "Department", render: (v) => <span className="font-medium">{v as string}</span> },
-                { key: "department_code", label: "Code", render: (v) => <span className="mono">{v as string}</span> },
-                { key: "institute_name", label: "Institute" },
-                { key: "yearly_load", label: "Yearly Load", align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
-                { key: "avg_hourly_rate", label: "Avg Rate", align: "right", render: (v) => <span className="mono text-[#6BAD96]">{fmt.currency(v as number)}</span> },
+                { key: "department_name", label: t.department, render: (v) => <span className="font-medium">{v as string}</span> },
+                { key: "department_code", label: t.code, render: (v) => <span className="mono">{v as string}</span> },
+                { key: "institute_name", label: t.institute },
+                { key: "yearly_load", label: t.yearlyLoad, align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
+                { key: "avg_hourly_rate", label: t.avgRate, align: "right", render: (v) => <span className="mono text-[#6BAD96]">{fmt.currency(v as number)}</span> },
             ]}
         />
     );
 }
 
 export function Groups() {
+    const { t } = useLang();
     return (
         <DataPage
-            title="Groups" subtitle="Manage student group records"
+            title={t.groups} subtitle={t.groupsViewSub}
             fetcher={getGroups}
             endpoint="groups" idKey="group_id" csvName="groups"
             columns={[
                 { key: "group_id", label: "ID", render: (v) => <span className="mono text-muted-foreground">#{v as number}</span> },
-                { key: "group_name", label: "Group", render: (v) => <span className="font-medium">{v as string}</span> },
-                { key: "group_code", label: "Code", render: (v) => <span className="mono">{v as string}</span> },
-                { key: "degree", label: "Degree" },
-                { key: "edu_type", label: "Edu Type" },
-                { key: "student_count", label: "Students", align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
-                { key: "tuition_fee", label: "Tuition", align: "right", render: (v) => <span className="mono text-[#E8A87C]">{fmt.currency(v as number)}</span> },
-                { key: "institute_name", label: "Institute" },
+                { key: "group_name", label: t.group, render: (v) => <span className="font-medium">{v as string}</span> },
+                { key: "group_code", label: t.code, render: (v) => <span className="mono">{v as string}</span> },
+                { key: "degree", label: t.degree },
+                { key: "edu_type", label: t.eduType },
+                { key: "student_count", label: t.students, align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
+                { key: "tuition_fee", label: t.tuitionFee, align: "right", render: (v) => <span className="mono text-[#E8A87C]">{fmt.currency(v as number)}</span> },
+                { key: "institute_name", label: t.institute },
             ]}
         />
     );
 }
 
 export function Subjects() {
+    const { t } = useLang();
     return (
         <DataPage
-            title="Subjects" subtitle="Manage subject records"
+            title={t.subjects} subtitle={t.subjectsViewSub}
             fetcher={getSubjects}
             endpoint="subjects" idKey="subject_id" csvName="subjects"
             columns={[
                 { key: "subject_id", label: "ID", render: (v) => <span className="mono text-muted-foreground">#{v as number}</span> },
-                { key: "subject_name", label: "Subject", render: (v) => <span className="font-medium">{v as string}</span> },
-                { key: "department_name", label: "Department" },
-                { key: "hours_sem1", label: "Sem 1 Hours", align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
-                { key: "hours_sem2", label: "Sem 2 Hours", align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
-                { key: "hours_yearly", label: "Yearly Hours", align: "right", render: (v) => <span className="mono text-[#6B9FE4]">{fmt.number(v as number)}</span> },
+                { key: "subject_name", label: t.subjectName, render: (v) => <span className="font-medium">{v as string}</span> },
+                { key: "department_name", label: t.department },
+                { key: "hours_sem1", label: t.sem1Hours, align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
+                { key: "hours_sem2", label: t.sem2Hours, align: "right", render: (v) => <span className="mono">{fmt.number(v as number)}</span> },
+                { key: "hours_yearly", label: t.yearlyHours, align: "right", render: (v) => <span className="mono text-[#6B9FE4]">{fmt.number(v as number)}</span> },
             ]}
         />
     );
 }
 
 export function Professions() {
+    const { t } = useLang();
     return (
         <DataPage
-            title="Professions" subtitle="Manage profession records"
+            title={t.professions} subtitle={t.professionsViewSub}
             fetcher={getProfessions}
             endpoint="professions" idKey="prof_id" csvName="professions"
             columns={[
                 { key: "prof_id", label: "ID", render: (v) => <span className="mono text-muted-foreground">#{v as number}</span> },
-                { key: "prof_name", label: "Profession", render: (v) => <span className="font-medium">{v as string}</span> },
-                { key: "institute_name", label: "Institute" },
+                { key: "prof_name", label: t.professionName, render: (v) => <span className="font-medium">{v as string}</span> },
+                { key: "institute_name", label: t.institute },
             ]}
         />
     );

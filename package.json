@@ -1,0 +1,69 @@
+{
+  "name": "unicost",
+  "version": "1.0.0",
+  "description": "UniCost Financial Intelligence System",
+  "author": "UniCost",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+
+  },
+  "build": {
+    "appId": "com.unicost.app",
+    "productName": "UniCost",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+  "electron/**/*",
+  "unicost_final/dist/**/*"
+],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "redist",
+        "to": "redist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.finance"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "include": "installer.nsh",
+      "perMachine": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "electron-log": "^5.0.0"
+  }
+}

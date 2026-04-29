@@ -173,12 +173,32 @@ export const T = {
     // Confirm
     areYouSure: "Are you sure?",
     deleteRowMsg: "This record will be permanently deleted.",
-    deleteAllMsg: "ALL records in this table will be permanently deleted.",
+        deleteAllMsg: "ALL records in this table will be permanently deleted.",
+        deleteSelectedMsg: "Selected records will be permanently deleted.",
+        departmentCode: "Department Code",
     // Calculated fields
     avgHourlyRateCalc: "Avg Hourly Rate (auto-calculated)",
     avgHourlyRateFormula: "ROUND((12 x monthly_salary) / yearly_load, 0)",
     hoursYearlyCalc: "Hours Yearly (auto-calculated)",
     hoursYearlyFormula: "hours_sem1 + hours_sem2",
+    // Settings
+    settings: "Settings",
+    settingsSub: "Database connection configuration",
+    dbServer: "Server",
+    dbDatabase: "Database",
+    dbUsername: "Username",
+    dbPassword: "Password",
+    dbEncrypt: "Encrypt connection",
+    dbTrustCert: "Trust server certificate",
+    dbTimeout: "Connection timeout (sec)",
+    testConnection: "Test Connection",
+    saveSettings: "Save Settings",
+    settingsSaved: "Settings saved successfully.",
+    connectionOk: "Connection successful.",
+    connectionFailed: "Connection failed.",
+    dbError: "Database Error",
+    dbErrorMsg: "Cannot connect to the database. Please check your connection settings.",
+    goToSettings: "Go to Settings",
     // Form
     instituteName: "Institute Name",
     instituteCode: "Code",
@@ -295,7 +315,7 @@ export const T = {
     update: "Թարմացնել",
     deleteAll: "Ջնջել բոլորը",
     importFile: "Ներմուծել",
-    exportFile: "Արտահանել",
+    exportFile: "Ներբեռնել",
     refresh: "Թարմացնել",
     search: "Որոնել...",
     cancelBtn: "Չեղարկել",
@@ -363,7 +383,7 @@ export const T = {
     formulasTitle: "Բանաձևեր և սահմանումներ",
     hideFormulas: "Թաքցնել",
     showFormulas: "Ցուցադրել",
-    exportCSV: "Արտահանել CSV",
+    exportCSV: "Ներբեռնել CSV",
     // Manage pages
     instituteSub: "Ավելացնել, խմբագրել կամ հեռացնել ինստիտուտները",
     departmentSub: "Ավելացնել, խմբագրել կամ հեռացնել ամբիոնները",
@@ -393,12 +413,32 @@ export const T = {
     // Confirm
     areYouSure: "Վստա՞հ եք։",
     deleteRowMsg: "Այս գրառումը ընդմիշտ կջնջվի։",
-    deleteAllMsg: "ԲՈԼՈՐ գրառումները ընդմիշտ կջնջվեն։",
+      deleteAllMsg: "ԲՈԼՈՐ գրառումները ընդմիշտ կջնջվեն։",
+      deleteSelectedMsg: "Ընտրված գրառումները ընդմիշտ կջնջվեն։",
+      departmentCode: "Ամբիոնի կոդ",
     // Calculated fields
     avgHourlyRateCalc: "Միջին ժամային դրույքաչափ (ավտոմատ հաշվարկ)",
     avgHourlyRateFormula: "ROUND((12 x ամսական_աշխ.) / տարեկան_ծանրաբ., 0)",
     hoursYearlyCalc: "Տարեկան ժամեր (ավտոմատ հաշվարկ)",
     hoursYearlyFormula: "hours_sem1 + hours_sem2",
+    // Settings
+    settings: "Կարգավորումներ",
+    settingsSub: "Տվյալների բազայի կապի կարգավորում",
+    dbServer: "Սերվեր",
+    dbDatabase: "Տվյալների բազա",
+    dbUsername: "Օգտատեր",
+    dbPassword: "Գաղտնաբառ",
+    dbEncrypt: "Կոդավորել կապը",
+    dbTrustCert: "Վստահել սերվերի վկայականին",
+    dbTimeout: "Կապի ժամանակ (վ)",
+    testConnection: "Ստուգել կապը",
+    saveSettings: "Պահպանել",
+    settingsSaved: "Կարգավորումները պահպանված են։",
+    connectionOk: "Կապը հաջողված է։",
+    connectionFailed: "Կապը ձախողվեց։",
+    dbError: "Տվյալների բազայի սխալ",
+    dbErrorMsg: "Հնարավոր չէ միանալ տվյալների բազային։ Ստուգեք կապի կարգավորումները։",
+    goToSettings: "Գնալ Կարգավորումներ",
     // Form
     instituteName: "Ինստիտուտի անվանումը",
     instituteCode: "Կոդ",
@@ -449,7 +489,7 @@ export const T = {
 interface LangContextType {
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: typeof T.en;
+  t: typeof T.en | typeof T.hy;
 }
 
 const LangContext = createContext<LangContextType>({

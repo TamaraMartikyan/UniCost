@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build output
+dist/
+build/
+dist-electron/
+*.spec
+
+# Large binaries and installers
+backend/main.exe
+electron/main.exe
+redist/
+unicost_final/public/msodbcsql.msi
+
+# IDE
+.idea/
+
+# Claude Code internals
+.claude/
+
+# Environment
+.env
+.env.local

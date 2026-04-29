@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useData } from "@/hooks/useData";
 import { getInstitutes } from "@/api";
 import { PageHeader } from "@/app/components/PageHeader";
@@ -7,9 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/app/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/app/components/ui/table";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from "recharts";
-import { fmt } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Users, DollarSign, Download } from "lucide-react";
+import { fmt, downloadFile } from "@/lib/utils";
+import { TrendingUp, TrendingDown, Users, DollarSign, Download, Printer } from "lucide-react";
 import { useLang } from "@/lib/LangContext";
 
 const BASE = "http://localhost:8001";
@@ -31,16 +30,52 @@ const EXCLUDED_INSTITUTES = [
     'Լեզուների գիտակրթական կենտրոն',
 ];
 
-const COLORS_BAR = ["#6B9FE4", "#E8A87C", "#6BAD96", "#9E9FE0", "#E8D87A", "#8BA8D8"];
-
-function exportCSV(data: any[], name: string) {
-    if (!data?.length) return;
-    const keys = Object.keys(data[0]);
-    const header = keys.join(",");
-    const rows = data.map((r) => keys.map((k) => r[k] ?? "").join(","));
-    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `${name}.csv`; a.click();
+function printReport(rows: any[], level: string, cols: string[], colLabels: Record<string, string>, title: string) {
+    const fmtVal = (key: string, val: unknown) => {
+        if (val === null || val === undefined) return "—";
+        if (typeof val === "number") {
+            if (["student_count"].includes(key)) return val.toLocaleString();
+            if (["profitability_ratio"].includes(key)) return val.toFixed(2);
+            return val.toLocaleString("hy-AM", { style: "currency", currency: "AMD", maximumFractionDigits: 0 });
+        }
+        return String(val);
+    };
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; }
+        h1 { font-size: 16px; margin-bottom: 4px; }
+        p  { font-size: 11px; color: #555; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #16213e; color: #fff; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+        tr:nth-child(even) td { background: #f9fafb; }
+        .num { text-align: right; }
+        tfoot td { background: #7c3aed; color: #fff; font-weight: bold; padding: 6px 8px; }
+        @media print { @page { margin: 15mm; } }
+    </style></head><body>
+    <h1>${title}</h1>
+    <p>Generated: ${new Date().toLocaleString()} · ${rows.length} records</p>
+    <table>
+        <thead><tr>${cols.map(c => `<th>${colLabels[c] ?? c}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map(row => `<tr>${cols.map(c => {
+        const isNum = typeof row[c] === "number";
+        return `<td class="${isNum ? "num" : ""}">${fmtVal(c, row[c])}</td>`;
+    }).join("")}</tr>`).join("")}</tbody>
+        <tfoot><tr>${cols.map((c, i) => {
+        if (i === 0) return `<td>TOTAL</td>`;
+        const vals = rows.map(r => r[c]).filter(v => typeof v === "number") as number[];
+        if (vals.length) return `<td class="num">${vals.reduce((a, b) => a + b, 0).toLocaleString()}</td>`;
+        return `<td></td>`;
+    }).join("")}</tr></tfoot>
+    </table>
+    </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) {
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        setTimeout(() => w.print(), 250);
+    }
 }
 
 function FormulaBox({ level }: { level: string }) {
@@ -77,22 +112,39 @@ function FormulaBox({ level }: { level: string }) {
 
 export default function Analytics() {
     const { t } = useLang();
-    const [level, setLevel] = useState("institute");
     const [instituteId, setInstituteId] = useState("all");
-
-    const LEVELS = [
-        { value: "institute", label: t.byInstituteLvl },
-        { value: "department", label: t.byDepartment },
-        { value: "group", label: t.byGroup },
-    ];
+    const level = "institute";
 
     const { data: institutes } = useData(() => getInstitutes());
-    const { data, loading, error } = useData(
-        () => fetch(`${BASE}/analytics/per-student?level=${level}${instituteId !== "all" ? `&institute_id=${instituteId}` : ""}`).then((r) => r.json()),
-        [level, instituteId]
-    );
 
-    const rows = Array.isArray(data) ? data : [];
+    // Frontend cache per level — switching levels uses cached data instantly
+    const levelCache = useRef<Record<string, any[]>>({});
+    const [allRows, setAllRows] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (levelCache.current[level]) {
+            setAllRows(levelCache.current[level]);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        fetch(`${BASE}/analytics/per-student?level=institute`)
+            .then(r => r.json())
+            .then(result => {
+                const data = Array.isArray(result) ? result : [];
+                levelCache.current[level] = data;
+                setAllRows(data);
+                setLoading(false);
+            })
+            .catch(e => { setError(String(e)); setLoading(false); });
+    }, [level]);
+
+    // Filter by institute on frontend — instant, no API call
+    const rows = instituteId === "all"
+        ? allRows
+        : allRows.filter((r: any) => String(r.institute_id) === instituteId);
 
     const selectedInstituteName = instituteId === "all"
         ? t.allInstitutes
@@ -104,28 +156,9 @@ export default function Analytics() {
     const totalProfit = rows.reduce((s: number, r: any) => s + (r.profit || 0), 0);
     const avgCostPerStudent = totalStudents > 0 ? totalCosts / totalStudents : 0;
 
-    const nameKey = level === "institute" ? "institute_name" : level === "department" ? "department_name" : "group_name";
-    const costKey = level === "institute" ? "all_costs" : level === "department" ? "dept_cost" : "group_cost";
 
-    const profitChart = rows.slice(0, 12).map((r: any) => ({
-        name: sn(r[nameKey] ?? ""),
-        profit: r.profit || 0,
-        income: r.income || 0,
-        cost: r[costKey] || 0,
-    }));
 
-    const cpsChart = rows
-        .filter((r: any) => (r.cost_per_student || 0) > 0)
-        .slice(0, 12)
-        .map((r: any) => ({
-            name: sn(r[nameKey] ?? ""),
-            value: r.cost_per_student || 0,
-        }));
-
-    const instCols = ["institute_name", "student_count", "all_costs", "income", "cost_per_student", "profit", "avg_tuition_fee", "profitability_ratio"];
-    const deptCols = ["institute_name", "department_name", "student_count", "dept_cost", "income", "cost_per_student", "profit"];
-    const groupCols = ["institute_name", "department_name", "group_name", "group_code", "degree", "edu_type", "student_count", "tuition_fee", "income", "group_cost", "cost_per_student", "profit", "profitability_ratio"];
-    const cols = level === "institute" ? instCols : level === "department" ? deptCols : groupCols;
+    const cols = ["institute_name", "student_count", "all_costs", "income", "cost_per_student", "profit", "avg_tuition_fee", "profitability_ratio"];
 
     const colLabels: Record<string, string> = {
         institute_name: t.institute,
@@ -168,24 +201,6 @@ export default function Analytics() {
             {/* Controls */}
             <div className="flex flex-wrap gap-4 items-end">
                 <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground">{t.level}</label>
-                    <div className="flex gap-1.5">
-                        {LEVELS.map((l) => (
-                            <button
-                                key={l.value}
-                                onClick={() => setLevel(l.value)}
-                                className={`h-9 px-4 rounded-md text-sm font-medium border transition-all ${level === l.value
-                                        ? "bg-primary text-white border-primary"
-                                        : "bg-card border-border text-foreground hover:bg-accent"
-                                    }`}
-                            >
-                                {l.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground">{t.instituteFilter}</label>
                     <Select value={instituteId} onValueChange={setInstituteId}>
                         <SelectTrigger className="w-64 h-9 text-sm bg-card border-border">
@@ -201,17 +216,10 @@ export default function Analytics() {
                         </SelectContent>
                     </Select>
                 </div>
-
-                <button
-                    onClick={() => exportCSV(rows, `analytics-${level}`)}
-                    className="h-9 px-3 rounded-md text-sm font-medium flex items-center gap-1.5 bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors self-end"
-                >
-                    <Download className="h-3.5 w-3.5" /> {t.exportCSV}
-                </button>
             </div>
 
             {/* Formula box */}
-            <FormulaBox level={level} />
+            <FormulaBox level="institute" />
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -222,78 +230,75 @@ export default function Analytics() {
                 <KpiCard label={t.avgCostStudent} value={fmt.currency(avgCostPerStudent)} sub={t.universityAvg} icon={DollarSign} accent="violet" />
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card className="border-border">
-                    <CardHeader className="pt-4 px-5 pb-2">
-                        <CardTitle className="font-display text-base">{t.profitLoss} {LEVELS.find(l => l.value === level)?.label}</CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                            <span className="inline-block w-2 h-2 rounded-full bg-[#34d399] mr-1" />{t.surplusLabel} &nbsp;
-                            <span className="inline-block w-2 h-2 rounded-full bg-[#f87171] mr-1" />{t.deficitLabel} · {t.valuesInMillions} · {selectedInstituteName}
-                        </p>
-                    </CardHeader>
-                    <CardContent className="px-5 pb-4">
-                        <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={profitChart.map(r => ({ ...r, profit: Math.round(r.profit / 1_000_000) }))} margin={{ left: 10, right: 10, top: 10, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                                <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}M`} />
-                                <Tooltip
-                                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }}
-                                    formatter={(v: number) => [`${v}M AMD`, t.profit]}
-                                    cursor={{ fill: "hsl(var(--accent))", opacity: 0.4 }}
-                                />
-                                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="4 2" />
-                                <Bar dataKey="profit" radius={[4, 4, 0, 0]} maxBarSize={48}
-                                    label={{ position: "top", fontSize: 9, fill: "hsl(var(--muted-foreground))", formatter: (v: number) => v !== 0 ? `${v}M` : "" }}
-                                >
-                                    {profitChart.map((r: any, i: number) => (
-                                        <Cell key={i} fill={r.profit >= 0 ? "#34d399" : "#f87171"} fillOpacity={0.85} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
+            {/* Institute summary cards — all institutes view */}
+            {instituteId === "all" && rows.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {rows.map((r: any) => {
+                        const profit = r.profit || 0;
+                        const isProfit = profit >= 0;
+                        return (
+                            <button
+                                key={r.institute_id}
+                                onClick={() => setInstituteId(String(r.institute_id))}
+                                className="text-left rounded-xl border border-border bg-card hover:bg-accent/20 transition-colors p-5 space-y-4"
+                            >
+                                <p className="text-sm font-semibold text-foreground leading-snug">{r.institute_name?.trim()}</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-0.5">{t.students}</p>
+                                        <p className="text-lg font-bold text-blue-400 mono">{fmt.number(r.student_count)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-0.5">{t.costPerStudent}</p>
+                                        <p className="text-lg font-bold text-[#a78bfa] mono">{fmt.currency(r.cost_per_student)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-0.5">{t.totalIncome}</p>
+                                        <p className="text-lg font-bold text-green-400 mono">{Math.round(r.income / 1_000_000)}M</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-0.5">{t.totalProfit}</p>
+                                        <p className={`text-lg font-bold mono ${isProfit ? "text-[#34d399]" : "text-[#f87171]"}`}>
+                                            {isProfit ? "+" : ""}{Math.round(profit / 1_000_000)}M
+                                        </p>
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
-                <Card className="border-border">
-                    <CardHeader className="pt-4 px-5 pb-2">
-                        <CardTitle className="font-display text-base">{t.costPerStudentChart}</CardTitle>
-                        <p className="text-xs text-muted-foreground">{t.amdPerStudent} · {selectedInstituteName}</p>
-                    </CardHeader>
-                    <CardContent className="px-5 pb-4">
-                        <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={cpsChart} margin={{ left: -10 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                                <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
-                                <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
-                                <Tooltip
-                                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }}
-                                    formatter={(v: number) => [fmt.currency(v), t.costPerStudent]}
-                                />
-                                <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                                    {cpsChart.map((_: any, i: number) => (
-                                        <Cell key={i} fill={COLORS_BAR[i % COLORS_BAR.length]} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-            </div>
+
 
             {/* Detail Table */}
             <Card className="border-border">
-                <CardHeader className="pt-4 px-5 pb-3 flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="font-display text-base">
-                            {t.analyticsDetail} — {LEVELS.find(l => l.value === level)?.label}
-                        </CardTitle>
-                        {instituteId !== "all" && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{selectedInstituteName}</p>
-                        )}
+                <CardHeader className="pt-4 px-5 pb-3">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                            <CardTitle className="font-display text-base">
+                                {t.analyticsDetail}
+                            </CardTitle>
+                            {instituteId !== "all" && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{selectedInstituteName}</p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground">{rows.length} {t.records}</span>
+                            <button
+                                onClick={() => downloadFile(`http://localhost:8001/export/analytics?level=${level}${instituteId !== "all" ? `&institute_id=${instituteId}` : ""}`, `analytics_by_${level}.xlsx`)}
+                                className="h-8 px-3 rounded-md text-xs font-medium flex items-center gap-1.5 bg-secondary border border-border text-green-400 hover:bg-green-500/10 transition-colors"
+                            >
+                                <Download className="h-3.5 w-3.5" /> Excel
+                            </button>
+                            <button
+                                onClick={() => printReport(rows, level, cols, colLabels, `${t.analyticsDetail}`)}
+                                className="h-8 px-3 rounded-md text-xs font-medium flex items-center gap-1.5 bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                <Printer className="h-3.5 w-3.5" /> Print
+                            </button>
+                        </div>
                     </div>
-                    <span className="text-xs text-muted-foreground">{rows.length} {t.records}</span>
                 </CardHeader>
                 <CardContent className="px-0 pb-0">
                     <div className="overflow-x-auto">
